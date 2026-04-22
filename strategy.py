@@ -104,14 +104,20 @@ class ORBStrategy:
                     if sym_pm is not None and not sym_pm.empty:
                         self.candidates[sym]["premarket_vol"] = int(sym_pm["volume"].sum())
 
-            # Drop stocks with insufficient pre-market interest
-            min_pm = self.params["min_premarket_vol"]
-            before = len(self.candidates)
-            self.candidates = {
-                s: d for s, d in self.candidates.items()
-                if d["premarket_vol"] >= min_pm
-            }
-            log.info(f"Pre-market volume filter: {before} → {len(self.candidates)} candidates")
+            # Only apply pre-market volume filter if IEX actually returned data.
+            # IEX has very limited pre-market coverage — if nothing came back, skip
+            # the filter rather than wiping out all candidates.
+            total_pm_vol = sum(d["premarket_vol"] for d in self.candidates.values())
+            if total_pm_vol > 0:
+                min_pm = self.params["min_premarket_vol"]
+                before = len(self.candidates)
+                self.candidates = {
+                    s: d for s, d in self.candidates.items()
+                    if d["premarket_vol"] >= min_pm
+                }
+                log.info(f"Pre-market volume filter: {before} → {len(self.candidates)} candidates")
+            else:
+                log.info("No pre-market data from IEX — skipping pre-market volume filter")
 
         log.info(f"Scan complete — {len(self.candidates)} candidates "
                  f"({len(self._earnings_exclusions)} earnings exclusions)")
