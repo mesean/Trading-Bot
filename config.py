@@ -15,6 +15,7 @@ ET = pytz.timezone("America/New_York")
 ALPACA_API_KEY = os.environ.get("ALPACA_API_KEY", "")
 ALPACA_API_SECRET = os.environ.get("ALPACA_API_SECRET", "")
 PAPER_TRADING = os.environ.get("PAPER_TRADING", "true").lower() == "true"
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")  # optional — enables Claude research loop
 
 if not ALPACA_API_KEY or not ALPACA_API_SECRET:
     raise ValueError("ALPACA_API_KEY and ALPACA_API_SECRET must be set in environment or .env")

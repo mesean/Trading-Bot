@@ -21,6 +21,7 @@ from broker import Broker
 from strategy import ORBStrategy
 from research import save_day_trades, run_weekly_research, detect_market_regime
 from daily_brief import generate_brief
+from claude_research import run_claude_research
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,6 +48,7 @@ def main():
 
     last_day: date | None = None
     last_weekly_research_day: date | None = None
+    last_claude_research_day: date | None = None
 
     while True:
         try:
@@ -60,13 +62,19 @@ def main():
 
             weekday = now.weekday()  # 0=Mon … 6=Sun
 
-            # Saturday: weekly research
+            # Saturday: weekly research + Claude analysis
             if weekday == 5 and last_weekly_research_day != today:
                 if now.hour == 8 and now.minute < LOOP_SLEEP_SECONDS // 60 + 1:
                     log.info("=== Weekly research ===")
                     regime = detect_market_regime(broker)
                     run_weekly_research(regime)
                     last_weekly_research_day = today
+                    if last_claude_research_day != today:
+                        log.info("=== Claude research (Saturday) ===")
+                        result = run_claude_research(broker)
+                        if result:
+                            log.info(f"Claude research: {result}")
+                        last_claude_research_day = today
 
             if weekday >= 5:
                 time.sleep(LOOP_SLEEP_SECONDS)
@@ -132,6 +140,12 @@ def main():
                     brief_path = generate_brief(broker, strategy)
                     log.info(f"Daily brief written → {brief_path}")
                     strategy.brief_done = True
+                    if last_claude_research_day != today:
+                        log.info("=== Claude research (EOD) ===")
+                        result = run_claude_research(broker)
+                        if result:
+                            log.info(f"Claude research: {result}")
+                        last_claude_research_day = today
 
         except Exception as e:
             log.error(f"Main loop error: {e}", exc_info=True)
