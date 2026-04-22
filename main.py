@@ -26,7 +26,7 @@ from claude_research import run_claude_research
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)-8s %(name)s — %(message)s",
-    handlers=[logging.StreamHandler()],
+    handlers=[logging.StreamHandler(stream=__import__("sys").stdout)],
 )
 log = logging.getLogger("main")
 
