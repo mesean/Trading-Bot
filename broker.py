@@ -123,6 +123,41 @@ class Broker:
             log.error(f"get_closed_orders failed: {e}")
             return []
 
+    def submit_market_buy(self, symbol: str, qty: int):
+        """Plain market buy with no attached stops — use with submit_trailing_stop."""
+        try:
+            order = self.trading.submit_order(
+                MarketOrderRequest(
+                    symbol=symbol,
+                    qty=qty,
+                    side=OrderSide.BUY,
+                    time_in_force=TimeInForce.DAY,
+                )
+            )
+            log.info(f"BUY {symbol} x{qty}")
+            return order
+        except Exception as e:
+            log.error(f"Market buy failed {symbol}: {e}")
+            return None
+
+    def submit_trailing_stop(self, symbol: str, qty: int, trail_percent: float):
+        """Trailing stop-sell to manage an open long. Lets winners run, caps losers."""
+        try:
+            from alpaca.trading.requests import OrderRequest
+            order = self.trading.submit_order(OrderRequest(
+                symbol=symbol,
+                qty=qty,
+                side=OrderSide.SELL,
+                type="trailing_stop",
+                time_in_force=TimeInForce.DAY,
+                trail_percent=trail_percent,
+            ))
+            log.info(f"TRAIL STOP {symbol} x{qty} trail={trail_percent}%")
+            return order
+        except Exception as e:
+            log.error(f"Trailing stop failed {symbol}: {e}")
+            return None
+
     def extract_symbol_bars(self, df: pd.DataFrame, symbol: str) -> pd.DataFrame | None:
         """Pull a single symbol out of a MultiIndex DataFrame."""
         try:

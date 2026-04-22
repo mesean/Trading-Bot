@@ -198,6 +198,48 @@ def run_weekly_research(regime: dict):
 # Helpers
 # ------------------------------------------------------------------
 
+def get_earnings_exclusions(symbols: list) -> set:
+    """
+    Return symbols that have earnings today, yesterday, or tomorrow.
+    Trading into an earnings print makes ORB signals unreliable — the gap
+    is news-driven, not momentum-driven.
+    """
+    try:
+        import yfinance as yf
+    except ImportError:
+        log.warning("yfinance not installed — skipping earnings filter")
+        return set()
+
+    exclusions = set()
+    today = datetime.now(config.ET).date()
+    window = {today - timedelta(days=1), today, today + timedelta(days=1)}
+
+    for sym in symbols:
+        try:
+            cal = yf.Ticker(sym).calendar
+            if cal is None:
+                continue
+            # calendar is a dict in newer yfinance versions
+            dates = []
+            if isinstance(cal, dict):
+                raw = cal.get("Earnings Date", [])
+                dates = raw if hasattr(raw, "__iter__") and not hasattr(raw, "strftime") else [raw]
+            elif hasattr(cal, "loc") and "Earnings Date" in cal.index:
+                val = cal.loc["Earnings Date"]
+                dates = list(val) if hasattr(val, "__iter__") else [val]
+            for d in dates:
+                if hasattr(d, "date"):
+                    d = d.date()
+                if d in window:
+                    exclusions.add(sym)
+                    log.info(f"Earnings exclusion: {sym} ({d})")
+                    break
+        except Exception:
+            pass
+
+    return exclusions
+
+
 def _profit_factor(df: pd.DataFrame) -> float:
     wins = df[df["pnl"] > 0]["pnl"].sum()
     losses = abs(df[df["pnl"] <= 0]["pnl"].sum())

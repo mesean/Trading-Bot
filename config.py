@@ -38,11 +38,14 @@ DEFAULT_PARAMS = {
     "risk_per_trade": 0.02,        # 2% portfolio risk per trade
     "max_position_pct": 0.20,      # max 20% of portfolio in one stock
     "stop_loss_buffer": 0.002,     # extra 0.2% below ORB low for stop
-    "take_profit_mult": 2.0,       # TP = entry + mult * (entry - stop)
+    "take_profit_mult": 2.0,       # kept for research logging; live exits use trailing stop
     "max_drawdown": 0.20,          # kill-switch at 20% portfolio drawdown
     "min_volume_mult": 1.5,        # today's intraday vol pace must be Nx avg daily vol
     "min_gap_pct": 0.005,          # require at least 0.5% gap up at open
     "position_size_mult": 1.0,     # global size scalar, reduced in high-vol regimes
+    "trail_percent": 2.0,          # trailing stop distance as % of price
+    "min_premarket_vol": 50_000,   # minimum pre-market share volume to qualify
+    "rs_spy_min": 0.003,           # stock must outperform SPY by at least 0.3% on the day
 }
 
 
