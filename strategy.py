@@ -25,6 +25,7 @@ from broker import Broker
 from research import get_earnings_exclusions
 from analytics import annotate_trade
 from sentiment import score_candidates
+from notifications import notify_entry, notify_exit
 
 log = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ class ORBStrategy:
         self.eod_close_done: bool = False
         self.brief_done: bool = False
         self._earnings_exclusions: set = set()
+        self._notified_exit_ids: set = set()
 
     def reset_day(self):
         self.params = config.load_params()
@@ -55,6 +57,7 @@ class ORBStrategy:
         self.eod_close_done = False
         self.brief_done = False
         self._earnings_exclusions = set()
+        self._notified_exit_ids = set()
         log.info("=== New trading day — params reloaded ===")
 
     def update_regime(self, regime: dict):
@@ -354,6 +357,67 @@ class ORBStrategy:
                 f"gap={or_data['gap_pct']:.1%} vwap={vwap:.2f} rs_spy={or_data['gap_pct']-spy_day_change:+.1%} "
                 f"sent={sentiment_score:+.2f}"
             )
+            try:
+                notify_entry(symbol, qty, current_price, or_data["gap_pct"],
+                             sentiment_score, exit_structure)
+            except Exception as e:
+                log.warning(f"Entry notification failed: {e}")
+
+    # ------------------------------------------------------------------
+    # Real-time exit notifications — polled each tick during market hours
+    # ------------------------------------------------------------------
+    def check_new_exits(self):
+        """
+        Poll today's filled orders and push a notification for each newly-
+        filled sell (TP1, TP2, trailing stop, or EOD market close) that we
+        haven't already notified about. Safe to call every minute.
+        """
+        try:
+            closed = self.broker.get_closed_orders_today()
+        except Exception:
+            return
+
+        for o in closed:
+            if str(o.side) not in ("OrderSide.SELL", "sell"):
+                continue
+            if not o.filled_avg_price or not o.filled_qty:
+                continue
+            order_id = str(o.id)
+            if order_id in self._notified_exit_ids:
+                continue
+            self._notified_exit_ids.add(order_id)
+
+            sym = o.symbol
+            fill_price = float(o.filled_avg_price)
+            qty = int(o.filled_qty)
+            order_type = str(getattr(o, "type", "")).lower()
+
+            # Look up entry price from today's record for P&L calc
+            entry_price = None
+            for t in self.trades_today:
+                if t["symbol"] == sym:
+                    entry_price = t.get("fill_price")
+                    break
+            if entry_price is None:
+                continue  # skip if we don't know the entry (e.g., after a restart)
+
+            pnl = (fill_price - entry_price) * qty
+
+            if "trailing" in order_type:
+                reason = "trailing_stop"
+            elif "limit" in order_type:
+                reason = "take_profit"
+            elif "stop" in order_type:
+                reason = "stop"
+            elif "market" in order_type:
+                reason = "eod_close"
+            else:
+                reason = "unknown"
+
+            try:
+                notify_exit(sym, qty, fill_price, pnl, reason)
+            except Exception as e:
+                log.warning(f"Exit notification failed: {e}")
 
     # ------------------------------------------------------------------
     # Post-close: annotate trades with actual exit data

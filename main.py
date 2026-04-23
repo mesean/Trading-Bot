@@ -22,6 +22,7 @@ from strategy import ORBStrategy
 from research import save_day_trades, run_weekly_research, detect_market_regime
 from daily_brief import generate_brief
 from claude_research import run_claude_research
+from notifications import notify_eod
 
 logging.basicConfig(
     level=logging.INFO,
@@ -93,9 +94,18 @@ def main():
                 mins_to_close = (next_close - now).total_seconds() / 60
 
                 if mins_to_close <= EOD_CLOSE_MINS_BEFORE_CLOSE and not strategy.eod_close_done:
+                    positions_before = len(broker.get_positions())
                     log.info(f"EOD — closing all positions ({mins_to_close:.0f} min to close)")
                     broker.close_all_positions()
                     strategy.eod_close_done = True
+                    try:
+                        acct = broker.get_account()
+                        day_pnl = float(acct.portfolio_value) - float(acct.last_equity or acct.portfolio_value)
+                        notify_eod(positions_before, day_pnl)
+                    except Exception as e:
+                        log.warning(f"EOD notification failed: {e}")
+                    # Catch any last fills from the close
+                    strategy.check_new_exits()
 
                 else:
                     market_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
@@ -118,6 +128,7 @@ def main():
                             strategy.update_opening_ranges()
                         if not strategy.eod_close_done:
                             strategy.check_entries()
+                            strategy.check_new_exits()
 
             else:
                 # Market is closed
