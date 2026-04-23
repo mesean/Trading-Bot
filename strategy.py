@@ -133,9 +133,12 @@ class ORBStrategy:
             return
         now = datetime.now(config.ET)
         market_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
+        or_end = market_open + timedelta(minutes=self.params["opening_range_minutes"])
+        # Cap at OR end so a late backfill still uses strictly the first N minutes
+        end = min(now, or_end)
         symbols = list(self.candidates.keys())
 
-        bars = self.broker.get_bars(symbols, TimeFrame.Minute, start=market_open, end=now)
+        bars = self.broker.get_bars(symbols, TimeFrame.Minute, start=market_open, end=end)
         if bars is None:
             return
 

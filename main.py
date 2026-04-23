@@ -110,8 +110,14 @@ def main():
 
                     if mins_since_open < or_window:
                         strategy.update_opening_ranges()
-                    elif not strategy.eod_close_done:
-                        strategy.check_entries()
+                    else:
+                        # Late restart — backfill opening ranges from historical bars
+                        # so the bot can still trade today even if it came up after 9:45.
+                        if strategy.candidates and not strategy.opening_ranges:
+                            log.info("Late start — backfilling opening ranges from history")
+                            strategy.update_opening_ranges()
+                        if not strategy.eod_close_done:
+                            strategy.check_entries()
 
             else:
                 # Market is closed
