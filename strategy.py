@@ -274,17 +274,32 @@ class ORBStrategy:
             if qty * current_price > buying_power * 0.95:
                 qty = max(1, int(buying_power * 0.95 / current_price))
 
-            # --- Enter: market buy + trailing stop (replaces bracket order) ---
+            # --- Enter: market buy ---
             buy_order = self.broker.submit_market_buy(symbol, qty)
             if not buy_order:
                 continue
 
-            trail_order = self.broker.submit_trailing_stop(
-                symbol, qty, self.params["trail_percent"]
-            )
+            # --- Exit structure: partial take-profit tranches + runner ---
+            tp1_R = self.params.get("tp1_R_mult", 1.0)
+            tp2_R = self.params["take_profit_mult"]
+            tp1_price = current_price + risk_per_share * tp1_R
+            tp2_price = current_price + risk_per_share * tp2_R
+
+            if self.params.get("partial_tp_enabled", True) and qty >= 3:
+                qty_tp1 = qty // 3
+                qty_tp2 = qty // 3
+                qty_runner = qty - qty_tp1 - qty_tp2
+                self.broker.submit_limit_sell(symbol, qty_tp1, tp1_price)
+                self.broker.submit_limit_sell(symbol, qty_tp2, tp2_price)
+                self.broker.submit_trailing_stop(symbol, qty_runner, self.params["trail_percent"])
+                exit_structure = "partial"
+            else:
+                qty_tp1 = qty_tp2 = 0
+                qty_runner = qty
+                self.broker.submit_trailing_stop(symbol, qty, self.params["trail_percent"])
+                exit_structure = "trail_only"
 
             active_count += 1
-            ref_tp = current_price + risk_per_share * self.params["take_profit_mult"]
             self.trades_today.append({
                 "symbol": symbol,
                 "entry_time": now.isoformat(),
@@ -292,7 +307,12 @@ class ORBStrategy:
                 "qty": qty,
                 "stop_ref": round(stop_ref, 2),
                 "trail_percent": self.params["trail_percent"],
-                "take_profit_ref": round(ref_tp, 2),
+                "exit_structure": exit_structure,
+                "tp1_price": round(tp1_price, 2),
+                "tp2_price": round(tp2_price, 2),
+                "qty_tp1": qty_tp1,
+                "qty_tp2": qty_tp2,
+                "qty_runner": qty_runner,
                 "gap_pct": round(or_data["gap_pct"], 4),
                 "or_size": round(or_data["high"] - or_data["low"], 2),
                 "volume_mult": round(
@@ -309,8 +329,9 @@ class ORBStrategy:
             })
             log.info(
                 f"ENTRY {symbol} x{qty} @ ~{current_price:.2f} | "
-                f"gap={or_data['gap_pct']:.1%} vwap={vwap:.2f} "
-                f"rs_spy={or_data['gap_pct']-spy_day_change:+.1%} trail={self.params['trail_percent']}%"
+                f"structure={exit_structure} tp1={tp1_price:.2f}({qty_tp1}) "
+                f"tp2={tp2_price:.2f}({qty_tp2}) runner={qty_runner}@trail{self.params['trail_percent']}% | "
+                f"gap={or_data['gap_pct']:.1%} vwap={vwap:.2f} rs_spy={or_data['gap_pct']-spy_day_change:+.1%}"
             )
 
     # ------------------------------------------------------------------
@@ -318,32 +339,63 @@ class ORBStrategy:
     # ------------------------------------------------------------------
     def reconcile_trades(self):
         closed_orders = self.broker.get_closed_orders_today()
-        sell_fills = {}
+
+        # Aggregate ALL sell fills per symbol — with partial TPs, each trade
+        # can have up to 3 separate exits (tp1, tp2, trailing stop or eod close).
+        agg: Dict[str, dict] = {}
         for o in closed_orders:
-            if str(o.side) in ("OrderSide.SELL", "sell") and o.filled_avg_price:
-                sym = o.symbol
-                # Keep the latest fill per symbol
-                if sym not in sell_fills or (o.filled_at and sell_fills[sym].filled_at and
-                                              o.filled_at > sell_fills[sym].filled_at):
-                    sell_fills[sym] = o
+            if str(o.side) not in ("OrderSide.SELL", "sell"):
+                continue
+            if not o.filled_avg_price or not o.filled_qty:
+                continue
+            qty = int(o.filled_qty)
+            price = float(o.filled_avg_price)
+            order_type = str(getattr(o, "type", "")).lower()
+            sym = o.symbol
+            a = agg.setdefault(sym, {
+                "total_qty": 0,
+                "cost": 0.0,
+                "last_time": None,
+                "order_types": [],
+            })
+            a["total_qty"] += qty
+            a["cost"] += qty * price
+            if o.filled_at and (a["last_time"] is None or o.filled_at > a["last_time"]):
+                a["last_time"] = o.filled_at
+            a["order_types"].append(order_type)
 
         for trade in self.trades_today:
             sym = trade["symbol"]
-            if sym in sell_fills and trade["exit_price"] is None:
-                o = sell_fills[sym]
-                exit_price = float(o.filled_avg_price)
-                pnl = (exit_price - trade["fill_price"]) * trade["qty"]
-                trade["exit_price"] = round(exit_price, 2)
-                trade["exit_time"] = str(o.filled_at)
-                trade["pnl"] = round(pnl, 2)
-                order_type = str(getattr(o, "type", "")).lower()
-                if "trailing" in order_type:
-                    trade["exit_reason"] = "trailing_stop"
-                elif "stop" in order_type:
-                    trade["exit_reason"] = "stop"
-                else:
-                    trade["exit_reason"] = "eod_close"
-                try:
-                    annotate_trade(self.broker, trade)
-                except Exception as e:
-                    log.warning(f"Analytics annotation failed for {sym}: {e}")
+            if sym not in agg or trade["exit_price"] is not None:
+                continue
+            a = agg[sym]
+            if a["total_qty"] == 0:
+                continue
+
+            avg_exit_price = a["cost"] / a["total_qty"]
+            pnl = (avg_exit_price - trade["fill_price"]) * a["total_qty"]
+            trade["exit_price"] = round(avg_exit_price, 2)
+            trade["exit_time"] = str(a["last_time"])
+            trade["pnl"] = round(pnl, 2)
+
+            types = a["order_types"]
+            has_trail = any("trailing" in t for t in types)
+            has_limit = any("limit" in t for t in types)
+            has_market = any("market" in t for t in types)
+            if has_limit and has_trail:
+                trade["exit_reason"] = "partial_tp_and_trail"
+            elif has_limit and has_market:
+                trade["exit_reason"] = "partial_tp_and_eod"
+            elif has_limit:
+                trade["exit_reason"] = "take_profit"
+            elif has_trail:
+                trade["exit_reason"] = "trailing_stop"
+            elif has_market:
+                trade["exit_reason"] = "eod_close"
+            else:
+                trade["exit_reason"] = "unknown"
+
+            try:
+                annotate_trade(self.broker, trade)
+            except Exception as e:
+                log.warning(f"Analytics annotation failed for {sym}: {e}")

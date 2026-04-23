@@ -47,6 +47,8 @@ DEFAULT_PARAMS = {
     "trail_percent": 2.0,          # trailing stop distance as % of price
     "min_premarket_vol": 50_000,   # minimum pre-market share volume to qualify
     "rs_spy_min": 0.003,           # stock must outperform SPY by at least 0.3% on the day
+    "partial_tp_enabled": True,    # split each entry into 1/3 at 1R, 1/3 at 2R, 1/3 runner
+    "tp1_R_mult": 1.0,             # first take-profit tranche at 1x risk
 }
 
 

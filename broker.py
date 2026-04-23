@@ -140,6 +140,23 @@ class Broker:
             log.error(f"Market buy failed {symbol}: {e}")
             return None
 
+    def submit_limit_sell(self, symbol: str, qty: int, limit_price: float):
+        """Limit-sell order — used for partial take-profit tranches."""
+        try:
+            from alpaca.trading.requests import LimitOrderRequest
+            order = self.trading.submit_order(LimitOrderRequest(
+                symbol=symbol,
+                qty=qty,
+                side=OrderSide.SELL,
+                time_in_force=TimeInForce.DAY,
+                limit_price=round(limit_price, 2),
+            ))
+            log.info(f"LIMIT SELL {symbol} x{qty} @ {limit_price:.2f}")
+            return order
+        except Exception as e:
+            log.error(f"Limit sell failed {symbol}: {e}")
+            return None
+
     def submit_trailing_stop(self, symbol: str, qty: int, trail_percent: float):
         """Trailing stop-sell to manage an open long. Lets winners run, caps losers."""
         try:
