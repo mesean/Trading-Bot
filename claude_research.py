@@ -251,7 +251,11 @@ Call `update_strategy_params` with your recommendations. Include numeric fields 
             system=system,
             messages=[{"role": "user", "content": prompt}],
             tools=_TOOLS,
-            tool_choice={"type": "any"},
+            # tool_choice "any" forces a tool call, but the API rejects that
+            # combination with thinking enabled. "auto" lets Claude think first
+            # and then call the tool — the prompt already instructs it to call
+            # update_strategy_params, so it reliably does.
+            tool_choice={"type": "auto"},
         ) as stream:
             response = stream.get_final_message()
     except Exception as e:

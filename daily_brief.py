@@ -1,16 +1,19 @@
 """
-Generates a markdown daily brief at end of day.
-- Writes to logs/daily_brief_YYYY-MM-DD.md
+Generates a text daily brief at end of day.
+- Writes to logs/daily_brief_YYYY-MM-DD.txt
 - Prints to stdout (Railway logs)
-- Emails to GMAIL_ADDRESS if credentials are set
+- Emails via Resend HTTP API (Railway blocks outbound SMTP)
+
+Required env vars for email:
+  RESEND_API_KEY — from resend.com dashboard
+  GMAIL_ADDRESS  — recipient address (reuses existing var)
 """
 import logging
 import os
-import smtplib
 from datetime import datetime
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from pathlib import Path
+
+import requests
 
 import config
 from analytics import compute_stats, format_summary
@@ -30,21 +33,35 @@ def _load_all_trades():
 
 
 def _send_email(subject: str, body: str):
-    gmail_address = os.environ.get("GMAIL_ADDRESS", "")
-    gmail_password = os.environ.get("GMAIL_APP_PASSWORD", "")
-    if not gmail_address or not gmail_password:
-        log.info("Email not configured — skipping")
+    """Send via Resend HTTP API — Railway blocks SMTP so we can't use Gmail directly."""
+    api_key = os.environ.get("RESEND_API_KEY", "").strip()
+    to_addr = os.environ.get("GMAIL_ADDRESS", "").strip()
+    from_addr = os.environ.get("EMAIL_FROM", "onboarding@resend.dev").strip()
+
+    if not api_key:
+        log.info("Email not configured — RESEND_API_KEY missing, skipping")
         return
+    if not to_addr:
+        log.info("Email not configured — GMAIL_ADDRESS (recipient) missing, skipping")
+        return
+
     try:
-        msg = MIMEMultipart()
-        msg["Subject"] = subject
-        msg["From"] = gmail_address
-        msg["To"] = gmail_address
-        msg.attach(MIMEText(body, "plain"))
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(gmail_address, gmail_password)
-            server.sendmail(gmail_address, gmail_address, msg.as_string())
-        log.info(f"Daily brief emailed to {gmail_address}")
+        resp = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": from_addr,
+                "to": [to_addr],
+                "subject": subject,
+                "text": body,
+            },
+            timeout=15,
+        )
+        resp.raise_for_status()
+        log.info(f"Daily brief emailed to {to_addr} via Resend")
     except Exception as e:
         log.error(f"Email failed: {e}")
 
