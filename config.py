@@ -49,6 +49,8 @@ DEFAULT_PARAMS = {
     "rs_spy_min": 0.003,           # stock must outperform SPY by at least 0.3% on the day
     "partial_tp_enabled": True,    # split each entry into 1/3 at 1R, 1/3 at 2R, 1/3 runner
     "tp1_R_mult": 1.0,             # first take-profit tranche at 1x risk
+    "sentiment_filter_enabled": True,  # block entries on stocks with clearly negative news
+    "min_sentiment_score": -0.2,       # allow neutral and mildly negative; block anything below
 }
 
 

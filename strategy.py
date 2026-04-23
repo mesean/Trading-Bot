@@ -24,6 +24,7 @@ import config
 from broker import Broker
 from research import get_earnings_exclusions
 from analytics import annotate_trade
+from sentiment import score_candidates
 
 log = logging.getLogger(__name__)
 
@@ -124,6 +125,17 @@ class ORBStrategy:
 
         log.info(f"Scan complete — {len(self.candidates)} candidates "
                  f"({len(self._earnings_exclusions)} earnings exclusions)")
+
+        # Score sentiment once per day — blocks entries on clearly negative news
+        if self.candidates and self.params.get("sentiment_filter_enabled", True):
+            try:
+                scores = score_candidates(list(self.candidates.keys()))
+                for sym, score in scores.items():
+                    if sym in self.candidates:
+                        self.candidates[sym]["sentiment_score"] = score
+            except Exception as e:
+                log.warning(f"Sentiment scoring failed — skipping filter: {e}")
+
         self.scan_done = True
 
     # ------------------------------------------------------------------
@@ -216,6 +228,13 @@ class ORBStrategy:
                 break
 
             or_data = self.opening_ranges[symbol]
+
+            # 0. Sentiment filter — block clearly negative-news stocks
+            sentiment_score = self.candidates.get(symbol, {}).get("sentiment_score", 0.0)
+            if self.params.get("sentiment_filter_enabled", True):
+                if sentiment_score < self.params.get("min_sentiment_score", -0.2):
+                    log.debug(f"{symbol} sentiment {sentiment_score:+.2f} too negative — skip")
+                    continue
 
             # 1. Gap filter
             if or_data["gap_pct"] < self.params["min_gap_pct"]:
@@ -321,6 +340,7 @@ class ORBStrategy:
                 ),
                 "vwap_at_entry": round(vwap, 2) if "vwap" in dir() else None,
                 "spy_rs": round(or_data["gap_pct"] - spy_day_change, 4),
+                "sentiment_score": round(sentiment_score, 2),
                 "exit_price": None,
                 "exit_time": None,
                 "exit_reason": None,
@@ -331,7 +351,8 @@ class ORBStrategy:
                 f"ENTRY {symbol} x{qty} @ ~{current_price:.2f} | "
                 f"structure={exit_structure} tp1={tp1_price:.2f}({qty_tp1}) "
                 f"tp2={tp2_price:.2f}({qty_tp2}) runner={qty_runner}@trail{self.params['trail_percent']}% | "
-                f"gap={or_data['gap_pct']:.1%} vwap={vwap:.2f} rs_spy={or_data['gap_pct']-spy_day_change:+.1%}"
+                f"gap={or_data['gap_pct']:.1%} vwap={vwap:.2f} rs_spy={or_data['gap_pct']-spy_day_change:+.1%} "
+                f"sent={sentiment_score:+.2f}"
             )
 
     # ------------------------------------------------------------------
