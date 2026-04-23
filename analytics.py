@@ -28,33 +28,50 @@ SECTOR_MAP: dict = {
     "AMD": "semis", "AVGO": "semis", "QCOM": "semis", "INTC": "semis",
     "TXN": "semis", "MU": "semis", "SMCI": "semis", "LRCX": "semis",
     "KLAC": "semis", "AMAT": "semis", "ARM": "semis", "MRVL": "semis",
-    # Software / cloud / cyber / growth
+    "TSM": "semis", "ASML": "semis", "ON": "semis", "NXPI": "semis",
+    "ADI": "semis", "ANET": "semis",
+    # Software / cloud / cyber / EDA / AI infra
     "CRM": "software", "ADBE": "software", "ORCL": "software", "NOW": "software",
     "IBM": "software", "INTU": "software", "PANW": "software", "FTNT": "software",
     "CRWD": "software", "ZS": "software", "NFLX": "software",
     "PLTR": "software", "SNOW": "software", "DDOG": "software", "NET": "software",
+    "SNPS": "software", "CDNS": "software", "MDB": "software", "TEAM": "software",
+    "DELL": "software", "CSCO": "software", "HPE": "software", "VRT": "software",
+    # Consumer internet / commerce / gig / streaming
+    "SHOP": "software", "UBER": "software", "DASH": "software",
+    "RDDT": "software", "SPOT": "software", "PYPL": "fintech", "SQ": "fintech",
+    # Gaming / betting
+    "RBLX": "software", "TTWO": "software", "EA": "software",
+    "DKNG": "consumer", "PENN": "consumer",
+    # Bitcoin / crypto-sensitive
+    "MSTR": "fintech", "MARA": "fintech", "RIOT": "fintech",
     # Finance
     "JPM": "finance", "BAC": "finance", "GS": "finance", "MS": "finance",
     "C": "finance", "WFC": "finance", "BLK": "finance", "SCHW": "finance",
-    "AXP": "finance",
+    "AXP": "finance", "USB": "finance", "PNC": "finance",
     # Fintech / payments
     "V": "fintech", "MA": "fintech", "COIN": "fintech", "HOOD": "fintech",
-    "SOFI": "fintech",
+    "SOFI": "fintech", "AFRM": "fintech",
     # Health
     "JNJ": "health", "PFE": "health", "ABBV": "health", "UNH": "health",
     "LLY": "health", "MRK": "health", "TMO": "health", "DHR": "health",
     "ABT": "health", "BMY": "health", "CVS": "health", "ISRG": "health",
-    # Consumer
+    "REGN": "health", "GILD": "health", "AMGN": "health", "VRTX": "health",
+    # Consumer discretionary / staples
     "COST": "consumer", "WMT": "consumer", "TGT": "consumer", "HD": "consumer",
     "LOW": "consumer", "NKE": "consumer", "SBUX": "consumer", "MCD": "consumer",
     "PEP": "consumer", "KO": "consumer", "DIS": "consumer", "BKNG": "consumer",
-    "ABNB": "consumer",
+    "ABNB": "consumer", "CVNA": "consumer", "CHWY": "consumer",
+    "KHC": "consumer", "MDLZ": "consumer", "PG": "consumer", "GME": "consumer",
+    # Travel
+    "AAL": "consumer", "DAL": "consumer", "UAL": "consumer",
+    "LUV": "consumer", "CCL": "consumer",
     # Industrial / defense
     "BA": "industrial", "CAT": "industrial", "DE": "industrial", "LMT": "industrial",
     "RTX": "industrial", "GE": "industrial", "HON": "industrial",
-    # Energy
+    # Energy (traditional + clean)
     "XOM": "energy", "CVX": "energy", "COP": "energy", "OXY": "energy",
-    "SLB": "energy",
+    "SLB": "energy", "ENPH": "energy", "FSLR": "energy", "PLUG": "energy",
     # Auto
     "F": "auto", "GM": "auto", "RIVN": "auto",
     # Communications

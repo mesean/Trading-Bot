@@ -67,31 +67,40 @@ def save_params(params: dict):
         json.dump(params, f, indent=2)
 
 
-# Liquid universe — ~95 large-cap equities + sector ETFs.
-# All names chosen for: >$5B mkt cap, >2M avg daily volume, reliable pre-market activity.
+# Liquid universe — ~150 names chosen for data-gathering breadth.
+# All names >$3B mkt cap, >2M avg daily volume, reactive to news/catalysts.
 WATCHLIST = [
     # Mega-cap tech
     "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA",
-    # Semis
+    # Semis (core + AI / EDA-adjacent)
     "AMD", "AVGO", "QCOM", "INTC", "TXN", "MU", "SMCI", "LRCX", "KLAC",
-    "AMAT", "ARM", "MRVL",
-    # Software / cloud / cyber
+    "AMAT", "ARM", "MRVL", "TSM", "ASML", "ON", "NXPI", "ADI", "ANET",
+    # Software / cloud / cyber / EDA / AI infra
     "CRM", "ADBE", "ORCL", "NOW", "IBM", "INTU", "PANW", "FTNT", "CRWD", "ZS",
-    "NFLX", "PLTR", "SNOW", "DDOG", "NET",
+    "NFLX", "PLTR", "SNOW", "DDOG", "NET", "SNPS", "CDNS", "MDB", "TEAM",
+    "DELL", "CSCO", "HPE", "VRT",
+    # Consumer internet / commerce / gig / streaming
+    "SHOP", "UBER", "DASH", "RDDT", "SPOT", "PYPL", "SQ",
+    # Gaming / betting / entertainment
+    "RBLX", "TTWO", "EA", "DKNG", "PENN",
+    # Bitcoin / crypto-sensitive
+    "MSTR", "MARA", "RIOT",
     # Finance / banks
-    "JPM", "BAC", "GS", "MS", "C", "WFC", "BLK", "SCHW", "AXP",
+    "JPM", "BAC", "GS", "MS", "C", "WFC", "BLK", "SCHW", "AXP", "USB", "PNC",
     # Payments / fintech
-    "V", "MA", "COIN", "HOOD", "SOFI",
-    # Health / pharma / medtech
+    "V", "MA", "COIN", "HOOD", "SOFI", "AFRM",
+    # Health / pharma / medtech / biotech
     "JNJ", "PFE", "ABBV", "UNH", "LLY", "MRK", "TMO", "DHR", "ABT", "BMY",
-    "CVS", "ISRG",
-    # Consumer / retail / travel
+    "CVS", "ISRG", "REGN", "GILD", "AMGN", "VRTX",
+    # Consumer discretionary / staples
     "COST", "WMT", "TGT", "HD", "LOW", "NKE", "SBUX", "MCD", "PEP", "KO",
-    "DIS", "BKNG", "ABNB",
+    "DIS", "BKNG", "ABNB", "CVNA", "CHWY", "KHC", "MDLZ", "PG", "GME",
+    # Travel / airlines / cruise
+    "AAL", "DAL", "UAL", "LUV", "CCL",
     # Industrial / defense
     "BA", "CAT", "DE", "LMT", "RTX", "GE", "HON",
-    # Energy
-    "XOM", "CVX", "COP", "OXY", "SLB",
+    # Energy (traditional + clean)
+    "XOM", "CVX", "COP", "OXY", "SLB", "ENPH", "FSLR", "PLUG",
     # Auto
     "F", "GM", "RIVN",
     # Communications
