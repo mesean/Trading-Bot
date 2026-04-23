@@ -23,6 +23,7 @@ from alpaca.data.timeframe import TimeFrame
 import config
 from broker import Broker
 from research import get_earnings_exclusions
+from analytics import annotate_trade
 
 log = logging.getLogger(__name__)
 
@@ -342,3 +343,7 @@ class ORBStrategy:
                     trade["exit_reason"] = "stop"
                 else:
                     trade["exit_reason"] = "eod_close"
+                try:
+                    annotate_trade(self.broker, trade)
+                except Exception as e:
+                    log.warning(f"Analytics annotation failed for {sym}: {e}")

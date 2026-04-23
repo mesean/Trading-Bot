@@ -13,8 +13,20 @@ from email.mime.text import MIMEText
 from pathlib import Path
 
 import config
+from analytics import compute_stats, format_summary
 
 log = logging.getLogger(__name__)
+
+
+def _load_all_trades():
+    import json
+    if not config.TRADES_FILE.exists():
+        return []
+    try:
+        with open(config.TRADES_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return []
 
 
 def _send_email(subject: str, body: str):
@@ -109,6 +121,15 @@ def generate_brief(broker, strategy) -> Path:
                 f"  {t['symbol']:<6}  ${ep:>7.2f}  {'—':>8}  {t['qty']:>4}  "
                 f"{'open':>8}  {'—':<12}  {(t.get('gap_pct') or 0):>5.1%}  {(t.get('volume_mult') or 0):>4.1f}x"
             )
+
+    # All-time analytics — trades.json already contains today's closed trades
+    # (save_day_trades runs in main.py before this function)
+    stats = compute_stats(_load_all_trades())
+    lines += [
+        "",
+        "ALL-TIME ANALYTICS",
+        format_summary(stats),
+    ]
 
     lines += [
         "",

@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 
 import config
 from news import fetch_news, summarise_for_prompt
+from analytics import compute_stats
 
 log = logging.getLogger(__name__)
 
@@ -187,6 +188,9 @@ def run_claude_research(broker=None) -> str | None:
         for t in closed[-25:]
     ]
 
+    # Full-history bucketed stats (hour/sector/gap/volume + MAE/MFE)
+    stats_block = json.dumps(compute_stats(trades), indent=2, default=str)
+
     # Pull 24h of news for today's traded symbols + broad-market proxies
     traded_syms = list({t.get("symbol") for t in closed[-20:] if t.get("symbol")})
     news_syms = traded_syms + ["SPY", "QQQ"]
@@ -216,6 +220,15 @@ EXIT REASONS: {json.dumps(exit_counts)}
 
 TRADE DETAIL (newest last):
 {json.dumps(trade_rows, indent=2)}
+
+BUCKETED PERFORMANCE ANALYTICS:
+{stats_block}
+
+Interpretation notes:
+- `mae_mfe.avg_mae_winners_pct`: how far winning trades dipped before recovering (absorb limit)
+- `mae_mfe.avg_mfe_winners_pct`: peak unrealised gain of winners (captured vs. left on the table)
+- `mae_mfe.avg_mfe_losers_pct`: peak unrealised gain of losers (missed take-profit opportunities)
+- `by_hour` / `by_sector` / `by_gap` / `by_volume`: win rate and profit factor bucketed by entry characteristic — use these to spot where edge is concentrated.
 
 RECENT NEWS (last 24h, traded symbols + SPY/QQQ):
 {news_block}
