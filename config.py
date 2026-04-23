@@ -63,16 +63,35 @@ def save_params(params: dict):
         json.dump(params, f, indent=2)
 
 
-# Liquid large-cap universe — mix of tech, finance, health, ETFs
+# Liquid universe — ~95 large-cap equities + sector ETFs.
+# All names chosen for: >$5B mkt cap, >2M avg daily volume, reliable pre-market activity.
 WATCHLIST = [
-    "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "AMD",
-    "NFLX", "CRM", "ADBE", "QCOM", "AVGO",
-    "JPM", "BAC", "GS", "MS",
-    "XOM", "CVX",
-    "JNJ", "PFE", "ABBV", "UNH",
-    "SPY", "QQQ", "IWM",
-    "PLTR", "SNOW", "DDOG", "NET",
-    "V", "MA",
-    "MU", "SMCI",
-    "COIN", "HOOD",
+    # Mega-cap tech
+    "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA",
+    # Semis
+    "AMD", "AVGO", "QCOM", "INTC", "TXN", "MU", "SMCI", "LRCX", "KLAC",
+    "AMAT", "ARM", "MRVL",
+    # Software / cloud / cyber
+    "CRM", "ADBE", "ORCL", "NOW", "IBM", "INTU", "PANW", "FTNT", "CRWD", "ZS",
+    "NFLX", "PLTR", "SNOW", "DDOG", "NET",
+    # Finance / banks
+    "JPM", "BAC", "GS", "MS", "C", "WFC", "BLK", "SCHW", "AXP",
+    # Payments / fintech
+    "V", "MA", "COIN", "HOOD", "SOFI",
+    # Health / pharma / medtech
+    "JNJ", "PFE", "ABBV", "UNH", "LLY", "MRK", "TMO", "DHR", "ABT", "BMY",
+    "CVS", "ISRG",
+    # Consumer / retail / travel
+    "COST", "WMT", "TGT", "HD", "LOW", "NKE", "SBUX", "MCD", "PEP", "KO",
+    "DIS", "BKNG", "ABNB",
+    # Industrial / defense
+    "BA", "CAT", "DE", "LMT", "RTX", "GE", "HON",
+    # Energy
+    "XOM", "CVX", "COP", "OXY", "SLB",
+    # Auto
+    "F", "GM", "RIVN",
+    # Communications
+    "CMCSA", "T", "VZ", "ROKU",
+    # Index / sector ETFs
+    "SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE", "XLV", "SMH",
 ]

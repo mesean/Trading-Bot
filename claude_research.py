@@ -13,6 +13,7 @@ import os
 from datetime import datetime, timedelta
 
 import config
+from news import fetch_news, summarise_for_prompt
 
 log = logging.getLogger(__name__)
 
@@ -186,6 +187,12 @@ def run_claude_research(broker=None) -> str | None:
         for t in closed[-25:]
     ]
 
+    # Pull 24h of news for today's traded symbols + broad-market proxies
+    traded_syms = list({t.get("symbol") for t in closed[-20:] if t.get("symbol")})
+    news_syms = traded_syms + ["SPY", "QQQ"]
+    news_items = fetch_news(news_syms, hours_back=24, limit=30)
+    news_block = summarise_for_prompt(news_items, max_items=15)
+
     now_str = datetime.now(config.ET).strftime("%Y-%m-%d %H:%M ET")
 
     system = (
@@ -209,6 +216,9 @@ EXIT REASONS: {json.dumps(exit_counts)}
 
 TRADE DETAIL (newest last):
 {json.dumps(trade_rows, indent=2)}
+
+RECENT NEWS (last 24h, traded symbols + SPY/QQQ):
+{news_block}
 
 STRATEGY CONTEXT:
 • Entry: breakout above the first {params['opening_range_minutes']}-min high after 9:30 ET open
