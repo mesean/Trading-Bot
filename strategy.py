@@ -104,18 +104,20 @@ class ORBStrategy:
                     if sym_pm is not None and not sym_pm.empty:
                         self.candidates[sym]["premarket_vol"] = int(sym_pm["volume"].sum())
 
-            # Only apply pre-market volume filter if IEX actually returned data.
-            # IEX has very limited pre-market coverage — if nothing came back, skip
-            # the filter rather than wiping out all candidates.
+            # Pre-market volume filter. IEX only sees a sliver of pre-market trading,
+            # so a stock with 0 IEX volume isn't proof of inactivity — it just means
+            # IEX didn't see it. Only disqualify stocks IEX *did* see trading but
+            # below the threshold; keep unseen stocks as candidates.
             total_pm_vol = sum(d["premarket_vol"] for d in self.candidates.values())
             if total_pm_vol > 0:
                 min_pm = self.params["min_premarket_vol"]
                 before = len(self.candidates)
                 self.candidates = {
                     s: d for s, d in self.candidates.items()
-                    if d["premarket_vol"] >= min_pm
+                    if d["premarket_vol"] == 0 or d["premarket_vol"] >= min_pm
                 }
-                log.info(f"Pre-market volume filter: {before} → {len(self.candidates)} candidates")
+                dropped = before - len(self.candidates)
+                log.info(f"Pre-market volume filter: dropped {dropped} low-activity stocks ({before} → {len(self.candidates)})")
             else:
                 log.info("No pre-market data from IEX — skipping pre-market volume filter")
 
