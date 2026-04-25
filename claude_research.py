@@ -114,7 +114,7 @@ def _clamp(current: float, proposed: float, key: str) -> float:
     return clamped
 
 
-def run_claude_research(broker=None) -> str | None:
+def run_claude_research(broker=None, filter_stats: dict | None = None) -> str | None:
     """
     Analyse trade history with Claude and apply any recommended param changes.
     Returns a short summary string, or None if skipped.
@@ -191,6 +191,11 @@ def run_claude_research(broker=None) -> str | None:
     # Full-history bucketed stats (hour/sector/gap/volume + MAE/MFE)
     stats_block = json.dumps(compute_stats(trades), indent=2, default=str)
 
+    # Today's per-filter rejection counts (helps spot which filter is too tight)
+    filter_stats_block = (
+        json.dumps(filter_stats, indent=2) if filter_stats else "Not available"
+    )
+
     # Pull 24h of news for today's traded symbols + broad-market proxies
     traded_syms = list({t.get("symbol") for t in closed[-20:] if t.get("symbol")})
     news_syms = traded_syms + ["SPY", "QQQ"]
@@ -223,6 +228,11 @@ TRADE DETAIL (newest last):
 
 BUCKETED PERFORMANCE ANALYTICS:
 {stats_block}
+
+FILTER REJECTION COUNTS (today, cumulative across all entry-check ticks):
+{filter_stats_block}
+
+Use these counts to spot which filter is the bottleneck. If `gap` rejected 800 stock-ticks and `rs_spy` rejected 50, the gap filter is the limiter — consider lowering min_gap_pct. If `breakout` is huge and the rest are small, the market simply did not produce breakouts (no parameter change needed). High `vwap` rejections suggest a choppy/mean-reverting tape.
 
 Interpretation notes:
 - `mae_mfe.avg_mae_winners_pct`: how far winning trades dipped before recovering (absorb limit)

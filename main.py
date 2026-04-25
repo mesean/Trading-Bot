@@ -72,7 +72,7 @@ def main():
                     last_weekly_research_day = today
                     if last_claude_research_day != today:
                         log.info("=== Claude research (Saturday) ===")
-                        result = run_claude_research(broker)
+                        result = run_claude_research(broker, filter_stats=getattr(strategy, "filter_stats", None))
                         if result:
                             log.info(f"Claude research: {result}")
                         last_claude_research_day = today
@@ -159,7 +159,7 @@ def main():
                     strategy.brief_done = True
                     if last_claude_research_day != today:
                         log.info("=== Claude research (EOD) ===")
-                        result = run_claude_research(broker)
+                        result = run_claude_research(broker, filter_stats=getattr(strategy, "filter_stats", None))
                         if result:
                             log.info(f"Claude research: {result}")
                         last_claude_research_day = today

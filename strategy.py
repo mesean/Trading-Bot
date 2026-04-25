@@ -47,6 +47,22 @@ class ORBStrategy:
         self.brief_done: bool = False
         self._earnings_exclusions: set = set()
         self._notified_exit_ids: set = set()
+        self.filter_stats: Dict[str, int] = self._empty_filter_stats()
+
+    @staticmethod
+    def _empty_filter_stats() -> Dict[str, int]:
+        return {
+            "sentiment": 0,   # blocked by negative news sentiment
+            "gap":       0,   # gap below min_gap_pct
+            "vol_pace":  0,   # volume pace below min_volume_mult
+            "rs_spy":    0,   # not outperforming SPY
+            "no_bars":   0,   # bar fetch failed
+            "breakout":  0,   # price has not broken OR high
+            "vol_conf":  0,   # breakout bar volume too low
+            "vwap":      0,   # price below VWAP
+            "sizing":    0,   # qty < 1 after risk sizing
+            "entries":   0,   # entries that actually fired
+        }
 
     def reset_day(self):
         self.params = config.load_params()
@@ -58,6 +74,7 @@ class ORBStrategy:
         self.brief_done = False
         self._earnings_exclusions = set()
         self._notified_exit_ids = set()
+        self.filter_stats = self._empty_filter_stats()
         log.info("=== New trading day — params reloaded ===")
 
     def update_regime(self, regime: dict):
@@ -225,6 +242,7 @@ class ORBStrategy:
         )
 
         active_count = len(positions)
+        tick_stats = self._empty_filter_stats()
 
         for symbol in candidates:
             if active_count >= self.params["max_positions"]:
@@ -237,23 +255,28 @@ class ORBStrategy:
             if self.params.get("sentiment_filter_enabled", True):
                 if sentiment_score < self.params.get("min_sentiment_score", -0.2):
                     log.debug(f"{symbol} sentiment {sentiment_score:+.2f} too negative — skip")
+                    tick_stats["sentiment"] += 1
                     continue
 
             # 1. Gap filter
             if or_data["gap_pct"] < self.params["min_gap_pct"]:
+                tick_stats["gap"] += 1
                 continue
 
             # 2. Volume pace filter
             expected_vol = or_data["avg_volume"] / 390 * minutes_since_open
             if or_data["total_volume"] < expected_vol * self.params["min_volume_mult"]:
+                tick_stats["vol_pace"] += 1
                 continue
 
             # 3. Relative strength vs SPY
             if or_data["gap_pct"] < spy_day_change + self.params["rs_spy_min"]:
+                tick_stats["rs_spy"] += 1
                 continue
 
             sym_bars = self.broker.extract_symbol_bars(bars, symbol)
             if sym_bars is None or sym_bars.empty:
+                tick_stats["no_bars"] += 1
                 continue
 
             latest = sym_bars.iloc[-1]
@@ -262,11 +285,13 @@ class ORBStrategy:
 
             # 4. Breakout: close above ORB high
             if current_price <= or_data["high"]:
+                tick_stats["breakout"] += 1
                 continue
 
             # 5. Volume confirmation on the breakout bar
             avg_min_vol = or_data["avg_volume"] / 390
             if bar_volume < avg_min_vol * self.params["min_volume_mult"]:
+                tick_stats["vol_conf"] += 1
                 continue
 
             # 6. VWAP filter: price must be above intraday VWAP
@@ -274,6 +299,7 @@ class ORBStrategy:
                 vwap = _vwap(sym_bars)
                 if current_price < vwap:
                     log.debug(f"{symbol} below VWAP ({current_price:.2f} < {vwap:.2f}) — skip")
+                    tick_stats["vwap"] += 1
                     continue
             except Exception:
                 pass  # if VWAP calc fails, don't block the trade
@@ -282,6 +308,7 @@ class ORBStrategy:
             stop_ref = or_data["low"] * (1.0 - self.params["stop_loss_buffer"])
             risk_per_share = current_price - stop_ref
             if risk_per_share < 0.01:
+                tick_stats["sizing"] += 1
                 continue
 
             size_mult = self.params.get("position_size_mult", 1.0)
@@ -290,6 +317,7 @@ class ORBStrategy:
             max_qty = int(portfolio_value * self.params["max_position_pct"] / current_price)
             qty = min(qty, max_qty)
             if qty < 1:
+                tick_stats["sizing"] += 1
                 continue
 
             buying_power = self.broker.get_buying_power()
@@ -362,6 +390,25 @@ class ORBStrategy:
                              sentiment_score, exit_structure)
             except Exception as e:
                 log.warning(f"Entry notification failed: {e}")
+            tick_stats["entries"] += 1
+
+        # --- Accumulate per-tick stats into the daily total ---
+        for k, v in tick_stats.items():
+            self.filter_stats[k] = self.filter_stats.get(k, 0) + v
+
+        # Throttled per-tick log: every 5 minutes, when there were rejections
+        # but no entries fired this tick. Lets us see in real time which filter
+        # is doing the most blocking on a given day.
+        if (
+            tick_stats["entries"] == 0
+            and now.minute % 5 == 0
+            and sum(v for k, v in tick_stats.items() if k != "entries") > 0
+        ):
+            reasons = " ".join(
+                f"{k}={v}" for k, v in tick_stats.items()
+                if v > 0 and k != "entries"
+            )
+            log.info(f"No entries this tick — rejections: {reasons}")
 
     # ------------------------------------------------------------------
     # Real-time exit notifications — polled each tick during market hours

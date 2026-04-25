@@ -148,6 +148,27 @@ def generate_brief(broker, strategy) -> Path:
         format_summary(stats),
     ]
 
+    # Filter rejection breakdown — shows where the bot got blocked today
+    fs = getattr(strategy, "filter_stats", None)
+    if fs and sum(fs.values()) > 0:
+        labels = {
+            "sentiment": "Sentiment (negative news)",
+            "gap":       "Gap below min_gap_pct",
+            "vol_pace":  "Volume pace below threshold",
+            "rs_spy":    "Underperforming SPY",
+            "no_bars":   "No intraday bars",
+            "breakout":  "Price did not break ORB high",
+            "vol_conf":  "Breakout bar volume too low",
+            "vwap":      "Price below VWAP",
+            "sizing":    "Position sizing rejected (qty < 1)",
+            "entries":   "Entries fired",
+        }
+        lines += ["", "FILTER REJECTIONS TODAY (cumulative across all ticks)"]
+        for k, label in labels.items():
+            count = fs.get(k, 0)
+            if count > 0 or k == "entries":
+                lines.append(f"  {label:<38} : {count}")
+
     lines += [
         "",
         "STRATEGY PARAMETERS",
