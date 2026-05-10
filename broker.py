@@ -160,20 +160,42 @@ class Broker:
     def submit_trailing_stop(self, symbol: str, qty: int, trail_percent: float):
         """Trailing stop-sell to manage an open long. Lets winners run, caps losers."""
         try:
-            from alpaca.trading.requests import OrderRequest
-            order = self.trading.submit_order(OrderRequest(
+            from alpaca.trading.requests import TrailingStopOrderRequest
+            order = self.trading.submit_order(TrailingStopOrderRequest(
                 symbol=symbol,
                 qty=qty,
                 side=OrderSide.SELL,
-                type="trailing_stop",
                 time_in_force=TimeInForce.DAY,
-                trail_percent=trail_percent,
+                trail_percent=str(round(trail_percent, 2)),
             ))
-            log.info(f"TRAIL STOP {symbol} x{qty} trail={trail_percent}%")
+            log.info(f"TRAIL STOP {symbol} x{qty} trail={trail_percent}% (id={order.id})")
             return order
         except Exception as e:
-            log.error(f"Trailing stop failed {symbol}: {e}")
+            log.error(f"Trailing stop failed {symbol} qty={qty} trail={trail_percent}%: {e}", exc_info=True)
             return None
+
+    def wait_for_position(self, symbol: str, expected_qty: int, timeout_seconds: float = 5.0) -> bool:
+        """
+        Poll until a long position of at least expected_qty is recognised.
+        Returns True if confirmed within timeout, False otherwise.
+        Use this between submit_market_buy and any subsequent sell orders to
+        avoid 'insufficient qty' rejections from Alpaca.
+        """
+        import time
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            try:
+                positions = self.get_positions()
+                pos = positions.get(symbol)
+                if pos and int(pos.qty) >= expected_qty:
+                    return True
+            except Exception:
+                pass
+            time.sleep(0.25)
+        log.warning(
+            f"Position {symbol} qty={expected_qty} not confirmed within {timeout_seconds}s"
+        )
+        return False
 
     def extract_symbol_bars(self, df: pd.DataFrame, symbol: str) -> pd.DataFrame | None:
         """Pull a single symbol out of a MultiIndex DataFrame."""

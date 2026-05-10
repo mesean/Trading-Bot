@@ -324,30 +324,34 @@ class ORBStrategy:
             if qty * current_price > buying_power * 0.95:
                 qty = max(1, int(buying_power * 0.95 / current_price))
 
-            # --- Enter: market buy ---
-            buy_order = self.broker.submit_market_buy(symbol, qty)
-            if not buy_order:
-                continue
+            # --- Enter via bracket order: market buy + TP at 2R + SL at OR_low ---
+            # Bracket guarantees stop-loss and take-profit fire reliably (Alpaca-managed
+            # OCO group). Replaces the previous partial-TP + trailing-stop scheme,
+            # which silently failed in production for 8 trades — every exit was EOD.
+            tp_mult = self.params["take_profit_mult"]
+            tp_price = current_price + risk_per_share * tp_mult
+            stop_price = round(stop_ref, 2)
+            tp_price_rounded = round(tp_price, 2)
 
-            # --- Exit structure: partial take-profit tranches + runner ---
-            tp1_R = self.params.get("tp1_R_mult", 1.0)
-            tp2_R = self.params["take_profit_mult"]
-            tp1_price = current_price + risk_per_share * tp1_R
-            tp2_price = current_price + risk_per_share * tp2_R
-
-            if self.params.get("partial_tp_enabled", True) and qty >= 3:
-                qty_tp1 = qty // 3
-                qty_tp2 = qty // 3
-                qty_runner = qty - qty_tp1 - qty_tp2
-                self.broker.submit_limit_sell(symbol, qty_tp1, tp1_price)
-                self.broker.submit_limit_sell(symbol, qty_tp2, tp2_price)
-                self.broker.submit_trailing_stop(symbol, qty_runner, self.params["trail_percent"])
-                exit_structure = "partial"
+            bracket = self.broker.submit_bracket_order(
+                symbol=symbol,
+                qty=qty,
+                stop_price=stop_price,
+                take_profit_price=tp_price_rounded,
+            )
+            if not bracket:
+                # Bracket rejected — fall back to plain market buy with no protection,
+                # let the EOD close handle exit. This shouldn't happen under normal use.
+                log.error(f"Bracket order rejected for {symbol} — falling back to market buy")
+                if not self.broker.submit_market_buy(symbol, qty):
+                    continue
+                exit_structure = "naked_market"
             else:
-                qty_tp1 = qty_tp2 = 0
-                qty_runner = qty
-                self.broker.submit_trailing_stop(symbol, qty, self.params["trail_percent"])
-                exit_structure = "trail_only"
+                exit_structure = "bracket"
+            qty_tp1 = qty_tp2 = 0
+            qty_runner = qty
+            tp1_price = tp_price  # kept for backward-compat in trade record
+            tp2_price = tp_price
 
             active_count += 1
             self.trades_today.append({
@@ -380,8 +384,8 @@ class ORBStrategy:
             })
             log.info(
                 f"ENTRY {symbol} x{qty} @ ~{current_price:.2f} | "
-                f"structure={exit_structure} tp1={tp1_price:.2f}({qty_tp1}) "
-                f"tp2={tp2_price:.2f}({qty_tp2}) runner={qty_runner}@trail{self.params['trail_percent']}% | "
+                f"structure={exit_structure} stop={stop_price:.2f} tp={tp_price_rounded:.2f} "
+                f"(R={risk_per_share:.2f}) | "
                 f"gap={or_data['gap_pct']:.1%} vwap={vwap:.2f} rs_spy={or_data['gap_pct']-spy_day_change:+.1%} "
                 f"sent={sentiment_score:+.2f}"
             )
